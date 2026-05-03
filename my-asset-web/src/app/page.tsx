@@ -586,7 +586,7 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="budget" className="w-full mt-4">
-             <BudgetManager accounts={accounts} periodBalances={periodBalances} startDate={startDate} />
+             <BudgetManager accounts={accounts} startDate={startDate} />
           </TabsContent>
 
           <TabsContent value="fixed" className="w-full mt-4">
