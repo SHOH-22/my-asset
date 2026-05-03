@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -564,7 +564,7 @@ export default function FixedExpensesManager({ accounts }: { accounts: any[] }) 
                  </div>
                  <div className="space-y-1">
                    <Label className="text-xs font-bold text-slate-500">거래 분류</Label>
-                   <Select value={fClassId} onValueChange={setFClassId}>
+                   <Select value={fClassId} onValueChange={(val) => { if (val) setFClassId(val) }}>
                      <SelectTrigger className="bg-white">
                        <SelectValue placeholder="분류 선택">
                          {fClassId ? classifications.find(c => c.id === fClassId)?.name : "분류 선택"}

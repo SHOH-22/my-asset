@@ -347,7 +347,7 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
               </div>
               <div className="space-y-2">
                 <Label className="font-bold text-slate-800">거래 분류</Label>
-                <Select value={classificationId} onValueChange={setClassificationId}>
+                <Select value={classificationId} onValueChange={(val) => { if (val) setClassificationId(val) }}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="분류 선택">
                       {classificationId ? classifications.find(c => c.id === classificationId)?.name : "분류 선택"}

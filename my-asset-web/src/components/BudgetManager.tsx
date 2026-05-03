@@ -252,7 +252,7 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
             <CardTitle className="text-2xl font-black text-slate-800">{reportYear}년 종합 결산 리포트</CardTitle>
             <CardDescription>한 해 동안의 예산 계획과 지출 패턴을 분석합니다.</CardDescription>
           </div>
-          <Select value={reportYear} onValueChange={setReportYear}>
+          <Select value={reportYear} onValueChange={(val) => { if (val) setReportYear(val) }}>
             <SelectTrigger className="w-[120px] bg-white"><SelectValue /></SelectTrigger>
             <SelectContent>
               {[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={y.toString()}>{y}년</SelectItem>)}
@@ -316,7 +316,7 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
                                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                               </Pie>
-                              <RechartsTooltip formatter={(value: number) => `${value.toLocaleString()} 원`} />
+                              <RechartsTooltip formatter={(value: any) => `${Number(value).toLocaleString()} 원`} />
                             </PieChart>
                           </ResponsiveContainer>
                         </ChartContainer>
@@ -405,7 +405,7 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
                           <ChartTooltip 
                             content={<ChartTooltipContent indicator="line" />} 
                             cursor={{fill: 'rgba(226, 232, 240, 0.4)'}} 
-                            formatter={(value: number, name: string, item: any) => (
+                            formatter={(value: any, name: any, item: any) => (
                               <>
                                 <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color || item.payload?.fill }} />
                                 <div className="flex flex-1 justify-between items-center text-xs">
@@ -505,7 +505,7 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
                                           }}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
-                                              handleBudgetBlur(catName, idx, e.target.value)
+                                              handleBudgetBlur(catName, idx, (e.target as HTMLInputElement).value)
                                               setEditingCell(null)
                                             }
                                           }}
