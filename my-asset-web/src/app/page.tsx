@@ -118,8 +118,8 @@ export default function Dashboard() {
     // 1. 기간 리스트 조회 (Pagination 적용)
     const { data: txs } = await supabase.from("transactions")
       .select(`
-        id, transaction_date, description, payment_method_id, classification_id,
-        journal_entries ( account_id, amount, accounts ( name, type ) )
+        *,
+        journal_entries ( account_id, amount, accounts ( name, type, group_type ) )
       `)
       .eq("creator_id", user.id)
       .gte("transaction_date", startDate)
@@ -133,23 +133,56 @@ export default function Dashboard() {
         const inEntry = tx.journal_entries.find((e: any) => e.amount > 0)
         
         const isIncome = outEntry?.accounts?.type === "revenue"
-        const displayAmount = isIncome && outEntry ? Math.abs(outEntry.amount) : (outEntry ? outEntry.amount : 0)
+        const isTransfer = (outEntry?.accounts?.type === "asset" || outEntry?.accounts?.type === "liability") && 
+                           (inEntry?.accounts?.type === "asset" || inEntry?.accounts?.type === "liability")
+
+        const displayAmount = isIncome && outEntry ? Math.abs(outEntry.amount) : (outEntry ? Math.abs(outEntry.amount) : 0)
 
         const className = classData?.find((c: any) => c.id === tx.classification_id)?.name || '일반'
+        const transferCat = accs?.find((a:any) => a.id === tx.transfer_category_id)
+
+        let typeLabel = "지출"
+        let groupName = "알수없음"
+        let subName = "알수없음"
+        let outAccountName = ""
+        let inAccountName = ""
+
+        if (isTransfer) {
+          typeLabel = "이체"
+          groupName = transferCat?.group_type || "이체"
+          subName = transferCat?.name || "일반이체"
+          outAccountName = outEntry ? outEntry.accounts.name : ""
+          inAccountName = inEntry ? inEntry.accounts.name : ""
+        } else if (isIncome) {
+          typeLabel = "수입"
+          groupName = outEntry?.accounts?.group_type || "수입"
+          subName = outEntry?.accounts?.name || "알수없음"
+          inAccountName = inEntry ? inEntry.accounts.name : ""
+        } else {
+          typeLabel = "지출"
+          groupName = inEntry?.accounts?.group_type || "지출"
+          subName = inEntry?.accounts?.name || "알수없음"
+          outAccountName = tx.payment_method_id 
+            ? accs?.find((a:any) => a.id === tx.payment_method_id)?.name 
+            : (outEntry ? outEntry.accounts.name : '')
+        }
 
         return {
           id: tx.id,
           date: tx.transaction_date,
           description: tx.description,
           classification: className,
-          account: tx.payment_method_id 
-            ? accs?.find((a:any) => a.id === tx.payment_method_id)?.name 
-            : (outEntry ? outEntry.accounts.name : '알수없음'),
-          category: inEntry ? inEntry.accounts.name : '알수없음',
+          typeLabel,
+          groupName,
+          subName,
+          outAccountName,
+          inAccountName,
           amount: displayAmount,
           isIncome,
+          isTransfer,
           outAccountId: tx.payment_method_id || outEntry?.account_id,
-          inAccountId: inEntry?.account_id
+          inAccountId: inEntry?.account_id,
+          transfer_category_id: tx.transfer_category_id
         }
       })
       setTransactions(formatted)
@@ -234,7 +267,7 @@ export default function Dashboard() {
     } else {
       const allIds: Record<string, boolean> = {}
       accounts.forEach(a => {
-         const gName = a.sub_category || a.group_type || "미분류"
+         const gName = a.group_type || "미분류"
          allIds[`${a.type}-${gName}`] = true
       })
       setExpandedNodes(allIds)
@@ -247,7 +280,7 @@ export default function Dashboard() {
 
     const grouped: Record<string, { total: number, items: any[] }> = {}
     filtered.forEach(a => {
-      const gName = a.sub_category || a.group_type || "미분류"
+      const gName = a.group_type || "미분류"
       if (!grouped[gName]) grouped[gName] = { total: 0, items: [] }
       grouped[gName].items.push(a)
       grouped[gName].total += Math.abs(balMap[a.id] || 0)
@@ -453,29 +486,37 @@ export default function Dashboard() {
                   <TableHeader className="sticky top-0 bg-white">
                     <TableRow>
                       <TableHead>거래일</TableHead>
-                      <TableHead>분류</TableHead>
-                      <TableHead>설명 (적요)</TableHead>
-                      <TableHead>출처</TableHead>
-                      <TableHead>출금/입금처</TableHead>
+                      <TableHead>유형</TableHead>
+                      <TableHead>대분류</TableHead>
+                      <TableHead>소분류</TableHead>
                       <TableHead className="text-right">금액</TableHead>
+                      <TableHead>참고</TableHead>
+                      <TableHead>출금</TableHead>
+                      <TableHead>입금</TableHead>
+                      <TableHead>메모</TableHead>
                       <TableHead className="w-[60px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {transactions.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">이 기간 동안의 거래 내역이 존재하지 않습니다.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">이 기간 동안의 거래 내역이 존재하지 않습니다.</TableCell></TableRow>
                     ) : transactions.map((tx) => (
                       <TableRow key={tx.id}>
-                        <TableCell>{tx.date}</TableCell>
-                        <TableCell><Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold">{tx.classification}</Badge></TableCell>
-                        <TableCell className="font-medium">{tx.description}</TableCell>
-                        <TableCell>{tx.account}</TableCell>
+                        <TableCell className="whitespace-nowrap">{tx.date}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{tx.category}</Badge>
+                          <Badge variant="secondary" className={`font-bold ${tx.typeLabel === '수입' ? 'bg-blue-50 text-blue-600' : tx.typeLabel === '이체' ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-red-500'}`}>
+                            {tx.typeLabel}
+                          </Badge>
                         </TableCell>
-                        <TableCell className={`text-right font-bold ${tx.isIncome ? 'text-blue-600' : (tx.amount < 0 ? 'text-red-500' : 'text-slate-800')}`}>
-                          {tx.isIncome ? '+' : (tx.amount < 0 ? '-' : '')}{Math.abs(tx.amount).toLocaleString()} 원
+                        <TableCell>{tx.groupName}</TableCell>
+                        <TableCell className="font-semibold">{tx.subName}</TableCell>
+                        <TableCell className={`text-right font-bold whitespace-nowrap ${tx.isIncome ? 'text-blue-600' : tx.isTransfer ? 'text-slate-800' : 'text-red-500'}`}>
+                          {tx.isIncome ? '+' : (!tx.isTransfer && tx.amount > 0 ? '-' : '')}{Math.abs(tx.amount).toLocaleString()} 원
                         </TableCell>
+                        <TableCell><span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{tx.classification}</span></TableCell>
+                        <TableCell className="text-slate-600 text-sm">{tx.outAccountName}</TableCell>
+                        <TableCell className="text-slate-600 text-sm">{tx.inAccountName}</TableCell>
+                        <TableCell className="text-sm text-slate-500 max-w-[150px] truncate" title={tx.description}>{tx.description}</TableCell>
                         <TableCell className="flex items-center justify-end space-x-1">
                           <TransactionForm editData={tx} onSuccess={fetchData} trigger={<Button variant="outline" size="sm" className="h-7 text-xs px-2 text-slate-600">수정</Button>} />
                           <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-red-400 hover:text-red-700 hover:bg-red-50" onClick={() => deleteTransaction(tx.id)}>삭제</Button>

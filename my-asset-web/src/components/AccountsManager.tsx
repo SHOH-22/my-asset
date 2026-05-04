@@ -20,14 +20,13 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
   const [newName, setNewName] = useState("")
   const [newType, setNewType] = useState("expense") 
   const [newGroup, setNewGroup] = useState("")
-  const [newSubGroup, setNewSubGroup] = useState("")
   const [newLinkedAccount, setNewLinkedAccount] = useState("none")
   const [newMemo, setNewMemo] = useState("")
 
   // 이름 수정 상태
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
-  const [editSubGroup, setEditSubGroup] = useState("")
+  const [editGroup, setEditGroup] = useState("")
   const [editMemo, setEditMemo] = useState("")
 
   const [newClassificationName, setNewClassificationName] = useState("")
@@ -37,13 +36,13 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
   const handleEditInit = (a: any) => {
     setEditingId(a.id)
     setEditName(a.name)
-    setEditSubGroup(a.sub_category || "")
+    setEditGroup(a.group_type || "")
     setEditMemo(a.memo || "")
   }
 
   const handleEditSave = async (id: string) => {
     if (!editName.trim()) return
-    const { error } = await supabase.from("accounts").update({ name: editName, sub_category: editSubGroup || null, memo: editMemo || null }).eq("id", id)
+    const { error } = await supabase.from("accounts").update({ name: editName, group_type: editGroup || null, memo: editMemo || null }).eq("id", id)
     if (error) toast.error(`이름 변경 실패: ${error.message}`)
     else {
       toast.success("카테고리/계정 이름이 변경되었습니다. 기존에 입력된 거래에도 즉시 새 이름이 뜹니다!")
@@ -57,7 +56,16 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
     const { data: userAuth } = await supabase.auth.getUser()
     if (!userAuth?.user) return
     const { data } = await supabase.from("accounts").select("*").eq("owner_id", userAuth.user.id).order('type')
-    setAccounts(data || [])
+    const sortedData = (data || []).sort((a, b) => {
+      if (a.type !== b.type) return a.type.localeCompare(b.type)
+      const groupA = a.group_type || ""
+      const groupB = b.group_type || ""
+      if (groupA !== groupB) return groupA.localeCompare(groupB)
+      const nameA = a.name || ""
+      const nameB = b.name || ""
+      return nameA.localeCompare(nameB)
+    })
+    setAccounts(sortedData)
 
     let { data: classData } = await supabase.from("transaction_classifications").select("*").eq("owner_id", userAuth.user.id).order('created_at')
     if (!classData || classData.length === 0) {
@@ -88,6 +96,7 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
         if (newType === 'liability') group = '기타부채'
         if (newType === 'revenue') group = '기타수익'
         if (newType === 'expense') group = '기타지출'
+        if (newType === 'transfer') group = '기타이체'
     }
 
     const { error } = await supabase.from("accounts").insert([
@@ -96,7 +105,7 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
         name: newName, 
         type: newType, 
         group_type: group,
-        sub_category: newSubGroup || null,
+        sub_category: null,
         linked_account_id: newType === 'asset' && newLinkedAccount !== 'none' ? newLinkedAccount : null,
         memo: (newType === 'asset' || newType === 'liability') ? (newMemo || null) : null
       }
@@ -107,7 +116,6 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
       toast.success(`'${newName}' 항목이 성공적으로 추가되었습니다.`)
       setNewName("")
       setNewGroup("")
-      setNewSubGroup("")
       setNewMemo("")
       setNewLinkedAccount("none")
       loadAccounts()
@@ -194,9 +202,9 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
            else if (val === 'categories') setNewType('expense')
         }}>
           <TabsList className="flex flex-wrap w-full h-auto gap-1 p-1 mb-2 bg-slate-100 rounded-lg">
-            <TabsTrigger value="assets" className="flex-1 min-w-[100px] text-[11px] sm:text-sm py-2">🏦 자산/부채 지갑</TabsTrigger>
-            <TabsTrigger value="categories" className="flex-1 min-w-[100px] text-[11px] sm:text-sm py-2">🏷️ 수입/지출 분류</TabsTrigger>
-            <TabsTrigger value="classifications" className="flex-1 min-w-[100px] text-[11px] sm:text-sm py-2">📑 거래분류 관리</TabsTrigger>
+            <TabsTrigger value="assets" className="flex-1 min-w-[80px] text-[11px] sm:text-sm py-2">🏦 자산/부채 관리</TabsTrigger>
+            <TabsTrigger value="categories" className="flex-1 min-w-[80px] text-[11px] sm:text-sm py-2">🏷️ 수입/지출/이체 분류</TabsTrigger>
+            <TabsTrigger value="classifications" className="flex-1 min-w-[80px] text-[11px] sm:text-sm py-2">📑 거래 참고</TabsTrigger>
           </TabsList>
           
           <TabsContent value="assets" className="border rounded-md mt-2 p-2 sm:p-4 space-y-4 w-full min-w-0 overflow-x-hidden">
@@ -217,15 +225,11 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
                   </Select>
                 </div>
                 <div className="space-y-1 flex-1 min-w-0">
-                  <Label className="text-xs font-bold text-slate-500">대분류 (그룹)</Label>
+                  <Label className="text-xs font-bold text-slate-500">대분류 (그룹명)</Label>
                   <Input value={newGroup} onChange={e => setNewGroup(e.target.value)} placeholder="예: 은행명, 카드사명" className="w-full" />
                 </div>
                 <div className="space-y-1 flex-1 min-w-0">
-                  <Label className="text-xs font-bold text-slate-500">중분류 (선택)</Label>
-                  <Input value={newSubGroup} onChange={e => setNewSubGroup(e.target.value)} placeholder="예: 입출금, 신용카드" className="w-full" />
-                </div>
-                <div className="space-y-1 flex-1 min-w-0">
-                  <Label className="text-xs font-bold text-slate-500">소분류 (계정명)</Label>
+                  <Label className="text-xs font-bold text-slate-500">계정명</Label>
                   <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="예: 주거래통장, 생활비카드" required className="w-full" />
                 </div>
                 <div className="space-y-1 flex-1 min-w-[200px] min-w-0">
@@ -259,9 +263,8 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
                 <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                   <TableRow>
                     <TableHead>유형</TableHead>
-                    <TableHead>그룹(대분류)</TableHead>
-                    <TableHead>중분류</TableHead>
-                    <TableHead>항목명(소분류)</TableHead>
+                    <TableHead>대분류(그룹명)</TableHead>
+                    <TableHead>계정명</TableHead>
                     <TableHead className="w-[280px]">메모/계좌정보</TableHead>
                     <TableHead className="text-right">도구</TableHead>
                   </TableRow>
@@ -271,10 +274,9 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
                 {accounts.filter(a => a.type === "asset" || a.type === "liability").map(a => (
                   <TableRow key={a.id} className={a.is_active === false ? 'opacity-40 bg-slate-100' : ''}>
                     <TableCell>{a.type === 'asset' ? <span className="text-blue-600 font-bold">자산</span> : <span className="text-slate-500 font-bold">부채</span>}</TableCell>
-                    <TableCell>{a.group_type}</TableCell>
                     <TableCell>{editingId === a.id ? (
-                      <Input className="h-7 w-[90px] text-sm" value={editSubGroup} onChange={e => setEditSubGroup(e.target.value)} placeholder="중분류" />
-                    ) : (a.sub_category || "-")}</TableCell>
+                      <Input className="h-7 w-[100px] text-sm" value={editGroup} onChange={e => setEditGroup(e.target.value)} placeholder="대분류" />
+                    ) : (a.group_type || "-")}</TableCell>
                     <TableCell className="font-semibold text-base flex items-center">
                       {editingId === a.id ? (
                         <div className="flex items-center space-x-1">
@@ -320,27 +322,24 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
                   <Label className="text-xs font-bold text-slate-500">분류 유형</Label>
                   <Select value={newType} onValueChange={(val) => setNewType(val || "expense")}>
                     <SelectTrigger className="w-full bg-white">
-                      <SelectValue placeholder="지출 카테고리">
-                        {newType === 'expense' ? '지출 카테고리' : newType === 'revenue' ? '수입 카테고리' : '지출 카테고리'}
+                      <SelectValue placeholder="지출">
+                        {newType === 'expense' ? '지출' : newType === 'revenue' ? '수입' : '이체'}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="expense">지출 카테고리</SelectItem>
-                      <SelectItem value="revenue">수입 카테고리</SelectItem>
+                      <SelectItem value="expense">지출</SelectItem>
+                      <SelectItem value="revenue">수입</SelectItem>
+                      <SelectItem value="transfer">이체</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1 flex-1 min-w-0">
-                  <Label className="text-xs font-bold text-slate-500">대분류 (그룹)</Label>
-                  <Input value={newGroup} onChange={e => setNewGroup(e.target.value)} placeholder="예: 식비, 급여, 주거" className="w-full" />
+                  <Label className="text-xs font-bold text-slate-500">대분류 (그룹명)</Label>
+                  <Input value={newGroup} onChange={e => setNewGroup(e.target.value)} placeholder="예: 식비, 저축, 주거" className="w-full" />
                 </div>
                 <div className="space-y-1 flex-1 min-w-0">
-                  <Label className="text-xs font-bold text-slate-500">중분류 (선택)</Label>
-                  <Input value={newSubGroup} onChange={e => setNewSubGroup(e.target.value)} placeholder="예: 외식, 관리비, 수당" className="w-full" />
-                </div>
-                <div className="space-y-1 flex-1 min-w-0">
-                  <Label className="text-xs font-bold text-slate-500">소분류 (분류명)</Label>
-                  <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="예: 배달음식, 전기요금" required className="w-full" />
+                  <Label className="text-xs font-bold text-slate-500">분류명</Label>
+                  <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="예: 배달음식, 청약저축" required className="w-full" />
                 </div>
               </div>
               <Button className="w-full mt-1 bg-slate-800" type="submit" disabled={loading}>+ 수입/지출 분류 추가하기</Button>
@@ -350,22 +349,20 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
               <Table className="min-w-max relative">
                 <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                   <TableRow>
-                    <TableHead>지출/수입</TableHead>
-                    <TableHead>그룹(대분류)</TableHead>
-                    <TableHead>중분류</TableHead>
-                    <TableHead>분류명(소분류)</TableHead>
+                    <TableHead>수입/지출/이체</TableHead>
+                    <TableHead>대분류(그룹명)</TableHead>
+                    <TableHead>분류명</TableHead>
                     <TableHead className="text-right">도구</TableHead>
                   </TableRow>
                 </TableHeader>
               <TableBody>
-                {accounts.filter(a => a.type === "expense" || a.type === "revenue").length === 0 ? <TableRow><TableCell colSpan={5} className="text-center py-4">항목이 없습니다.</TableCell></TableRow> : null}
-                {accounts.filter(a => a.type === "expense" || a.type === "revenue").map(a => (
+                {accounts.filter(a => a.type === "expense" || a.type === "revenue" || a.type === "transfer").length === 0 ? <TableRow><TableCell colSpan={4} className="text-center py-4">항목이 없습니다.</TableCell></TableRow> : null}
+                {accounts.filter(a => a.type === "expense" || a.type === "revenue" || a.type === "transfer").map(a => (
                   <TableRow key={a.id} className={a.is_active === false ? 'opacity-40 bg-slate-100' : ''}>
-                    <TableCell>{a.type === 'revenue' ? <span className="text-green-600 font-bold">수입</span> : <span className="text-red-500 font-bold">비용(지출)</span>}</TableCell>
-                    <TableCell>{a.group_type}</TableCell>
+                    <TableCell>{a.type === 'revenue' ? <span className="text-green-600 font-bold">수입</span> : a.type === 'expense' ? <span className="text-red-500 font-bold">지출</span> : <span className="text-slate-600 font-bold">이체</span>}</TableCell>
                     <TableCell>{editingId === a.id ? (
-                      <Input className="h-7 w-[90px] text-sm" value={editSubGroup} onChange={e => setEditSubGroup(e.target.value)} placeholder="중분류" />
-                    ) : (a.sub_category || "-")}</TableCell>
+                      <Input className="h-7 w-[100px] text-sm" value={editGroup} onChange={e => setEditGroup(e.target.value)} placeholder="대분류" />
+                    ) : (a.group_type || "-")}</TableCell>
                     <TableCell className="font-semibold text-base flex items-center">
                       {editingId === a.id ? (
                         <div className="flex items-center space-x-1">
@@ -397,6 +394,8 @@ export default function AccountsManager({ onSuccess }: { onSuccess?: () => void 
             </Table>
             </div>
           </TabsContent>
+
+
 
           <TabsContent value="classifications" className="border rounded-md mt-2 p-2 sm:p-4 space-y-4 w-full min-w-0 overflow-x-hidden">
             <form onSubmit={handleAddClassification} className="flex flex-col sm:flex-row gap-2 mb-4 w-full min-w-0">

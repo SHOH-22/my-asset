@@ -22,7 +22,7 @@ export default function BudgetStatusWidget({ accounts, periodBalances, startDate
   const categorySpending: Record<string, number> = {}
   accounts.forEach(a => {
     if (a.type !== 'expense') return
-    const gName = a.sub_category || a.group_type || "미분류"
+    const gName = a.group_type || "미분류"
     categorySpending[gName] = (categorySpending[gName] || 0) + Math.abs(periodBalances[a.id] || 0)
   })
 

@@ -70,11 +70,11 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
 
   useEffect(() => { loadBudgets(); loadYearlyReport() }, [reportYear])
 
-  const allCategories = Array.from(new Set(accounts.filter(a => a.type === 'expense' || a.type === 'revenue').map(a => a.sub_category || a.group_type || "미분류"))).filter(Boolean)
+  const allCategories = Array.from(new Set(accounts.filter(a => a.type === 'expense' || a.type === 'revenue').map(a => a.group_type || "미분류"))).filter(Boolean)
   const categoryTypes: Record<string, string> = {}
   accounts.forEach(a => {
     if (a.type === 'expense' || a.type === 'revenue') {
-      const gName = a.sub_category || a.group_type || "미분류"
+      const gName = a.group_type || "미분류"
       categoryTypes[gName] = a.type
     }
   })
@@ -139,14 +139,14 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
         totalRevenue += rev
         if (monthlyData[monthKey]) monthlyData[monthKey].revenue += rev
         
-        const sName = je.accounts?.sub_category || "미분류"
+        const sName = je.accounts?.group_type || "미분류"
         const accName = je.accounts?.name || "미분류"
         
         if (!revenueBySub[sName]) revenueBySub[sName] = { total: 0, subs: {} }
         revenueBySub[sName].total += rev
         revenueBySub[sName].subs[accName] = (revenueBySub[sName].subs[accName] || 0) + rev
 
-        const matrixName = je.accounts?.sub_category || je.accounts?.group_type || "미분류"
+        const matrixName = je.accounts?.group_type || "미분류"
         if (!categoryMonthlyMatrix[matrixName]) {
           categoryMonthlyMatrix[matrixName] = Array(12).fill(0)
           categoryTypes[matrixName] = 'revenue'
@@ -157,14 +157,14 @@ export default function BudgetManager({ accounts, startDate }: { accounts: any[]
         totalExpense += exp
         if (monthlyData[monthKey]) monthlyData[monthKey].expense += exp
         
-        const sName = je.accounts?.sub_category || "미분류"
+        const sName = je.accounts?.group_type || "미분류"
         const accName = je.accounts?.name || "미분류"
         
         if (!expenseBySub[sName]) expenseBySub[sName] = { total: 0, subs: {} }
         expenseBySub[sName].total += exp
         expenseBySub[sName].subs[accName] = (expenseBySub[sName].subs[accName] || 0) + exp
         
-        const matrixName = je.accounts?.sub_category || je.accounts?.group_type || "미분류"
+        const matrixName = je.accounts?.group_type || "미분류"
         if (!categoryMonthlyMatrix[matrixName]) {
           categoryMonthlyMatrix[matrixName] = Array(12).fill(0)
           categoryTypes[matrixName] = 'expense'

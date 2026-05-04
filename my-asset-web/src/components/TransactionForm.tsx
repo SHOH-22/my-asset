@@ -30,6 +30,7 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
   
   const [classifications, setClassifications] = useState<any[]>([])
   const [classificationId, setClassificationId] = useState("")
+  const [transferCategoryId, setTransferCategoryId] = useState("")
   const [frequentTxs, setFrequentTxs] = useState<any[]>([])
   const [frequentTemplate, setFrequentTemplate] = useState<string>("none")
 
@@ -93,6 +94,7 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
         else setType('expense')
 
         if (editData.classification_id) setClassificationId(editData.classification_id)
+        if (editData.transfer_category_id) setTransferCategoryId(editData.transfer_category_id)
     }
   }
 
@@ -160,6 +162,7 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
       setFromAccount(freq.from_account_id || "")
       setToAccount(freq.to_account_id || "")
       if (freq.classification_id) setClassificationId(freq.classification_id)
+      if (freq.transfer_category_id) setTransferCategoryId(freq.transfer_category_id)
       setDate(new Date().toISOString().split("T")[0])
     }
   }
@@ -199,7 +202,8 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
         transaction_date: date,
         description: description,
         payment_method_id: paymentMethodId,
-        classification_id: classificationId || null
+        classification_id: classificationId || null,
+        transfer_category_id: type === 'transfer' ? (transferCategoryId || null) : null
       }).eq("id", editData.id)
 
       if (txError) { toast.error(`내역 수정 오류: ${txError.message}`); setLoading(false); return }
@@ -213,7 +217,8 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
         transaction_date: date,
         description: description,
         payment_method_id: paymentMethodId,
-        classification_id: classificationId || null
+        classification_id: classificationId || null,
+        transfer_category_id: type === 'transfer' ? (transferCategoryId || null) : null
       }]).select()
 
       if (txError) { toast.error(`내역 기록 오류: ${txError.message}`); setLoading(false); return }
@@ -254,7 +259,8 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
        amount: amount ? Number(amount) : null,
        from_account_id: fromAccount || null,
        to_account_id: toAccount || null,
-       classification_id: classificationId || null
+       classification_id: classificationId || null,
+       transfer_category_id: type === 'transfer' ? (transferCategoryId || null) : null
     }
     const { error } = await supabase.from("frequent_transactions").insert(payload)
     if (error) toast.error("템플릿 저장 실패: " + error.message)
@@ -277,7 +283,7 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
       <Dialog open={open} onOpenChange={(val) => {
          setOpen(val); 
          if (!val && !editData) {
-            setAmount(""); setDescription(""); setFromAccount(""); setToAccount(""); setTemplate("none"); setFrequentTemplate("none");
+            setAmount(""); setDescription(""); setFromAccount(""); setToAccount(""); setTemplate("none"); setFrequentTemplate("none"); setTransferCategoryId("");
          }
       }}>
         <DialogContent className="sm:max-w-md bg-white shadow-2xl max-h-[85vh] overflow-y-auto">
@@ -370,19 +376,19 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
               <Input placeholder="어디서 무엇을 하셨나요? (예: 인터넷 요금 결제)" value={description} onChange={(e) => setDescription(e.target.value)} required />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className={`grid grid-cols-1 md:grid-cols-${type === 'transfer' ? '3' : '2'} gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200`}>
               <div className="space-y-2">
                 <Label className="text-slate-600 font-bold">{type === "income" ? "어떤 수익인가요? (카테고리)" : "어디서 나갔나요? (출금 계좌)"}</Label>
                 <Select value={fromAccount} onValueChange={(val) => setFromAccount(val || "")}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="계정 선택">
-                      {fromAccount ? accounts.find(a => a.id === fromAccount)?.name : "계정 선택"}
+                      {fromAccount ? (() => { const a = accounts.find(a => String(a.id) === String(fromAccount)); return a ? `[${a.group_type || '미분류'}] ${a.name}` : "계정 선택"; })() : "계정 선택"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {type === "income" 
-                      ? (revenues.length > 0 ? revenues.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)
-                      : (assets.length > 0 ? assets.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)}
+                      ? (revenues.length > 0 ? revenues.map(a => <SelectItem key={a.id} value={String(a.id)}>[{a.group_type || '미분류'}] {a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)
+                      : (assets.length > 0 ? assets.map(a => <SelectItem key={a.id} value={String(a.id)}>[{a.group_type || '미분류'}] {a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -391,16 +397,31 @@ export default function TransactionForm({ onSuccess, editData, trigger }: Props)
                 <Select value={toAccount} onValueChange={(val) => setToAccount(val || "")}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="계정 선택">
-                      {toAccount ? accounts.find(a => a.id === toAccount)?.name : "계정 선택"}
+                      {toAccount ? (() => { const a = accounts.find(a => String(a.id) === String(toAccount)); return a ? `[${a.group_type || '미분류'}] ${a.name}` : "계정 선택"; })() : "계정 선택"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {type === "expense" 
-                      ? (expenses.length > 0 ? expenses.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)
-                      : (assets.length > 0 ? assets.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)}
+                      ? (expenses.length > 0 ? expenses.map(a => <SelectItem key={a.id} value={String(a.id)}>[{a.group_type || '미분류'}] {a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)
+                      : (assets.length > 0 ? assets.map(a => <SelectItem key={a.id} value={String(a.id)}>[{a.group_type || '미분류'}] {a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+              {type === 'transfer' && (
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-bold">어떤 목적의 이체인가요?</Label>
+                  <Select value={transferCategoryId} onValueChange={(val) => setTransferCategoryId(val || "")}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="선택 안함">
+                        {transferCategoryId ? (() => { const a = accounts.find(a => String(a.id) === String(transferCategoryId)); return a ? `[${a.group_type || '미분류'}] ${a.name}` : "선택 안함"; })() : "선택 안함"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.filter(a => a.type === 'transfer').length > 0 ? accounts.filter(a => a.type === 'transfer').map(a => <SelectItem key={a.id} value={String(a.id)}>[{a.group_type || '미분류'}] {a.name}</SelectItem>) : <SelectItem value="empty" disabled>항목 없음</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 mt-2">
